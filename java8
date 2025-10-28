@@ -1,0 +1,137 @@
+import java.io.*;
+import java.sql.*;
+import javax.servlet.*;
+import javax.servlet.http.*;
+
+public class MainServlet extends HttpServlet {
+
+    private Connection conn;
+
+    public void init() throws ServletException {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            conn = DriverManager.getConnection(
+                "jdbc:mysql://localhost:3306/testdb", "root", "password");
+        } catch (Exception e) {
+            throw new ServletException(e);
+        }
+    }
+
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+        throws ServletException, IOException {
+        processRequest(request, response);
+    }
+
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+        throws ServletException, IOException {
+        processRequest(request, response);
+    }
+
+    private void processRequest(HttpServletRequest request, HttpServletResponse response)
+        throws ServletException, IOException {
+
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+        String action = request.getParameter("action");
+
+        if (action == null) {
+            out.println("<h2>Invalid Request</h2>");
+            return;
+        }
+
+        switch (action) {
+            case "login":
+                handleLogin(request, out);
+                break;
+
+            case "employee":
+                handleEmployee(request, out);
+                break;
+
+            case "attendance":
+                handleAttendance(request, out);
+                break;
+
+            default:
+                out.println("<h3>Unknown Action</h3>");
+        }
+    }
+
+    private void handleLogin(HttpServletRequest request, PrintWriter out) {
+        String user = request.getParameter("username");
+        String pass = request.getParameter("password");
+
+        if ("admin".equals(user) && "12345".equals(pass)) {
+            out.println("<h2>Welcome, " + user + "!</h2>");
+            out.println("<a href='index.html'>Home</a><br><br>");
+            out.println("<a href='index.html#employee'>Go to Employee Portal</a><br>");
+            out.println("<a href='index.html#attendance'>Go to Attendance Portal</a>");
+        } else {
+            out.println("<h3 style='color:red'>Invalid Credentials</h3>");
+            out.println("<a href='index.html'>Back to Login</a>");
+        }
+    }
+
+    private void handleEmployee(HttpServletRequest request, PrintWriter out) {
+        String empId = request.getParameter("empid");
+        try {
+            String query;
+            PreparedStatement ps;
+            if (empId != null && !empId.isEmpty()) {
+                query = "SELECT * FROM Employee WHERE EmpID = ?";
+                ps = conn.prepareStatement(query);
+                ps.setInt(1, Integer.parseInt(empId));
+            } else {
+                query = "SELECT * FROM Employee";
+                ps = conn.prepareStatement(query);
+            }
+
+            ResultSet rs = ps.executeQuery();
+
+            out.println("<h2>Employee Records</h2>");
+            out.println("<table border='1'><tr><th>EmpID</th><th>Name</th><th>Salary</th></tr>");
+            while (rs.next()) {
+                out.println("<tr><td>" + rs.getInt("EmpID") + "</td><td>"
+                        + rs.getString("Name") + "</td><td>"
+                        + rs.getDouble("Salary") + "</td></tr>");
+            }
+            out.println("</table>");
+            out.println("<br><a href='index.html#employee'>Back</a>");
+        } catch (Exception e) {
+            out.println("<p>Error: " + e.getMessage() + "</p>");
+        }
+    }
+
+    private void handleAttendance(HttpServletRequest request, PrintWriter out) {
+        String studentId = request.getParameter("studentId");
+        String date = request.getParameter("date");
+        String status = request.getParameter("status");
+
+        try {
+            String query = "INSERT INTO Attendance (StudentID, Date, Status) VALUES (?, ?, ?)";
+            PreparedStatement ps = conn.prepareStatement(query);
+            ps.setInt(1, Integer.parseInt(studentId));
+            ps.setString(2, date);
+            ps.setString(3, status);
+            int result = ps.executeUpdate();
+
+            if (result > 0) {
+                out.println("<h3>Attendance recorded successfully!</h3>");
+            } else {
+                out.println("<h3 style='color:red'>Failed to record attendance.</h3>");
+            }
+            out.println("<a href='index.html#attendance'>Back</a>");
+        } catch (Exception e) {
+            out.println("<p>Error: " + e.getMessage() + "</p>");
+        }
+    }
+
+    public void destroy() {
+        try {
+            if (conn != null)
+                conn.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
